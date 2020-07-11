@@ -1,0 +1,18 @@
+version: '3.4'
+
+services:
+
+    db:
+        image: postgres
+        restart: always
+        environment:
+            POSTGRES_PASSWORD: db123
+        volumes: 
+            # - ./db/postgresql.conf:/var/lib/postgresql/data/postgresql.conf
+            - ./db/data:/var/lib/postgresql/data
+    
+    adminer:
+        image: adminer
+        restart: always
+        ports:
+            - 8080:8080
