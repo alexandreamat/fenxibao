@@ -6,6 +6,7 @@ verify_ssl = true
 [dev-packages]
 django = "*"
 psycopg2-binary = "*"
+pylint = "*"
 
 [packages]
 
