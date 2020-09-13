@@ -2,11 +2,36 @@ from django.db import models
 
 # Create your models here.
 
-class User(models.Model):
-    
-    username = models.CharField(max_length=100)
-    name = models.CharField(max_length=100)
-    surname = models.CharField(max_length=100)
+class Account(models.Model):
+    '''账号
+    '''
+
+    #: 账户名
+    user_name = models.CharField()
+    #: 用户
+    user_full_name = models.CharField(max_length=100)
     
     def __str__(self):
         return f'{self.name} {self.surname}'
+
+class Transaction(models.Model):
+    '''交易
+    '''
+
+    #: 交易号
+    # id_ = models.
+    #: 商家订单号
+    #: 交易创建时间
+    #: 付款时间
+    #: 最近修改时间
+    #: 交易来源地
+    #: 类型
+    #: 交易对方
+    #: 商品名称
+    #: 金额（元）
+    #: 收/支
+    #: 交易状态
+    #: 服务费（元）
+    #: 成功退款（元）
+    #: 备注
+    #: 资金状态
