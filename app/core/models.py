@@ -7,7 +7,7 @@ class Account(models.Model):
     '''
 
     #: 账户名
-    user_name = models.CharField()
+    user_name = models.CharField(max_length=100)
     #: 用户
     user_full_name = models.CharField(max_length=100)
     
@@ -19,7 +19,7 @@ class Transaction(models.Model):
     '''
 
     #: 交易号
-    # id_ = models.
+    alipay_id = models.CharField(max_length=100, unique=True)
     #: 商家订单号
     #: 交易创建时间
     #: 付款时间

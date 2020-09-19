@@ -1,3 +1,5 @@
-db/data/
+data/
 .vscode
 *.zip
+.env
+__pycache__
