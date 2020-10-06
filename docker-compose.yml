@@ -4,7 +4,6 @@ services:
 
     db:
         image: timescale/timescaledb:latest-pg12
-        restart: always
         environment:
             - POSTGRES_DB=${DATABASE_NAME}
             - POSTGRES_USER=${DATABASE_USER}
@@ -17,7 +16,6 @@ services:
             - 54320:5432
     app:
         build: ./app
-        restart: always
         environment:
             - DEBUG=${DEBUG}
             - SECRET_KEY=${SECRET_KEY}
