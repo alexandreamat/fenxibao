@@ -2,7 +2,7 @@ from django.contrib import admin
 
 # Register your models here.
 
-from core.models import Account, Transaction
+from core.models import Account, RawTransaction
 
 admin.site.register(Account)
-admin.site.register(Transaction)
+admin.site.register(RawTransaction)

@@ -3,6 +3,7 @@ import io
 import glob
 import types
 import re
+import datetime
 from tqdm import tqdm
 from enum import Enum, auto
 
@@ -10,7 +11,7 @@ from enum import Enum, auto
 import djclick as click
 from django.db import transaction
 
-from core.models import Transaction, Account
+from core.models import RawTransaction, Account
 
 
 HEADER_DELIMITER = '---------------------------------交易记录明细列表------------------------------------\n'
@@ -19,13 +20,58 @@ ENCODING = 'gb18030'
 PATTERN = r':\[(.*?)\]'
 ACCOUNT_ZH = '账号'
 
+DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+
+
 class AlipayRecord:
+
+
+    TRANSACTION_ORIGIN_CHOICES = {
+        '淘宝': RawTransaction.Origin.TAOBAO,
+        '支付宝网站': RawTransaction.Origin.ALIPAY,
+        '其他（包括阿里巴巴和外部商家）': RawTransaction.Origin.OTHER,
+    }
+    TRANSACTION_TYPE_CHOICES = {
+        '支付宝担保交易': RawTransaction.Categroy.ALIPAY_PROTECTED,
+        '预订交易': RawTransaction.Categroy.BOOKING,
+        '即时到账交易': RawTransaction.Categroy.INSTANT,
+    }
+    TRANSACTION_SIGN_CHOICES = {
+        '支出': RawTransaction.Sign.EXPENDITURE,
+        '收入': RawTransaction.Sign.INCOME,
+        # '': Transaction.Sign.EMPTY,
+    }
+    TRANSACTION_STATE_CHOICES = {
+        '等待确认收货': RawTransaction.State.AWAITING_RECEPTION_CONFIRMATION,
+        '已关闭': RawTransaction.State.CLOSED,
+        '支付成功': RawTransaction.State.PAID,
+        '转账失败': RawTransaction.State.TRANSFER_FAILED,
+        '充值成功': RawTransaction.State.ADDED_VALUE,
+        '失败': RawTransaction.State.FAILURE,
+        '解冻成功': RawTransaction.State.UNFREEZED,
+        '代付成功': RawTransaction.State.PAID_BY_OTHERS,
+        '冻结成功': RawTransaction.State.FREEZED,
+        '等待付款': RawTransaction.State.AWAITING_PAYMENT,
+        '退款成功': RawTransaction.State.REFUNDED,
+        '交易成功': RawTransaction.State.TRANSACTION_SUCCESSFUL,
+        '交易关闭': RawTransaction.State.TRANSACTION_CLOSED,
+    }
+    FUNDS_STATE_CHOICES = {
+        '待支出': RawTransaction.FundsState.AWAITING_EXPENDITURE,
+        '已支出': RawTransaction.FundsState.PAID,
+        '资金转移': RawTransaction.FundsState.FUNDS_TRANSFER,
+        '冻结': RawTransaction.FundsState.FROZEN,
+        '已收入': RawTransaction.FundsState.RECEIVED,
+        '解冻': RawTransaction.FundsState.UNFROZEN,
+        # '': Transaction.FundsState.EMPTY,
+    }
 
     class FileSection(Enum):
         HEADER = auto()
         LABELS = auto()
         BODY = auto()
         FOOTER = auto()
+
 
     class Label(Enum):
         '''Labels of record CSV file
@@ -34,7 +80,7 @@ class AlipayRecord:
         number
         '''
 
-        NUM = 0 #: 交易号
+        ALIPAY_ID = 0 #: 交易号
         ORDER_NUM = 1 #: 商家订单号
         CREATION_DATE = 2 #: 交易创建时间
         LAST_MODIFIED_DATE = 3 #: 最近修改时间
@@ -52,59 +98,19 @@ class AlipayRecord:
         FUNDS_STATE = 15 #: 资金状态
 
 
-    class TransactionOrigin:
-        TAOBAO = '淘宝'
-        ALIPAY = '支付宝网站'
-        OTHER = '其他（包括阿里巴巴和外部商家）'
-    
-
-    class TransactionType:
-        ALIPAY_PROTECTED = '支付宝担保交易'
-        BOOKING = '预订交易'
-        INSTANT = '即时到账交易'
-
-
-    class Sign:
-        EXPENDITURE = '支出'
-        INCOME = '收入'
-        EMPTY = ''
-
-
-    class State:
-        AWAITING_RECEPTION_CONFIRMATION = '等待确认收货'
-        CLOSED = '已关闭'
-        PAID = '支付成功'
-        TRANSFER_FAILED = '转账失败'
-        ADDED_VALUE = '充值成功'
-        FAILURE = '失败'
-        UNFREEZED = '解冻成功'
-        PAID_BY_OTHERS = '代付成功'
-        FREEZED = '冻结成功'
-        AWAITING_PAYMENT = '等待付款'
-        REFUNDED = '退款成功'
-        TRANSACTION_SUCCESSFUL = '交易成功'
-        TRANSACTION_CLOSED = '交易关闭'
-
-
-    class FundState:
-        AWAITING_EXPENDITURE = '待支出'
-        PAID = '已支出'
-        FUNDS_TRANSFER = '资金转移'
-        FROZEN = '冻结'
-        RECEIVED = '已收入'
-        UNFROZEN = '解冻'}
-        EMPTY = ''
-
-
     def __init__(self, file_paths: str):
         self.file_paths = file_paths
+        self.account = None
         self.parse_zip_files()
 
     def parse_header_row(self, row: str):
         if ACCOUNT_ZH in row:
             match = re.search(ACCOUNT_ZH + PATTERN, row)
             if match:
-                self.username = match.group(1)
+                username = match.group(1)
+                self.account, _ = Account.objects.get_or_create(
+                    username=username
+                )
         # if '起始日期' in row:
         #     match = re.search(r'起始日期' + PATTERN, row)
         #     if match:
@@ -116,20 +122,67 @@ class AlipayRecord:
 
     def parse_body_row(self, row: str):
         columns = [column.strip() for column in row.split(',')]
-        alipay_id = columns[self.Label.NUM.value]
+        # get columns' values according to column number
+        alipay_id = columns[self.Label.ALIPAY_ID.value]
         creation_date = columns[self.Label.CREATION_DATE.value]
         amount = columns[self.Label.AMOUNT.value]
         origin = columns[self.Label.ORIGIN.value]
-        type_ = columns[self.Label.TYPE.value]
+        category = columns[self.Label.TYPE.value]
         sign = columns[self.Label.SIGN.value]
         state = columns[self.Label.STATE.value]
         funds_state = columns[self.Label.FUNDS_STATE.value]
-        account, _ = Account.objects.get_or_create(username=self.username)
-        Transaction.objects.get_or_create(
+        order_num = columns[self.Label.ORDER_NUM.value]
+        last_modified_date = columns[self.Label.LAST_MODIFIED_DATE.value]
+        payment_date = columns[self.Label.PAYMENT_DATE.value]
+        counterpart = columns[self.Label.COUNTERPART.value]
+        product_name = columns[self.Label.PRODUCT_NAME.value]
+        service_fee = columns[self.Label.SERVICE_FEE.value]
+        refund_complete = columns[self.Label.REFUND_COMPLETE.value]
+        notes = columns[self.Label.NOTES.value]
+        # convert to choices
+        origin = self.TRANSACTION_ORIGIN_CHOICES.get(origin)
+        category = self.TRANSACTION_TYPE_CHOICES.get(category)
+        sign = self.TRANSACTION_SIGN_CHOICES.get(sign)
+        state = self.TRANSACTION_STATE_CHOICES.get(state)
+        funds_state = self.FUNDS_STATE_CHOICES.get(funds_state)
+        # Create datetime objects
+        creation_date = datetime.datetime.strptime(
+            creation_date,
+            DATETIME_FORMAT,
+        )
+        if last_modified_date:
+            last_modified_date = datetime.datetime.strptime(
+                last_modified_date,
+                DATETIME_FORMAT,
+            )
+        else:
+            last_modified_date = None
+        if payment_date:
+            payment_date = datetime.datetime.strptime(
+                payment_date,
+                DATETIME_FORMAT,
+            )
+        else:
+            payment_date = None
+        # create objects
+        RawTransaction.objects.get_or_create(
+            account=self.account,
             alipay_id=alipay_id,
-            account=account,
-            # creation_date=creation_date,
+            creation_date=creation_date,
             amount=amount,
+            origin=origin,
+            category=category,
+            sign=sign,
+            state=state,
+            funds_state=funds_state,
+            order_num=order_num,
+            last_modified_date=last_modified_date,
+            payment_date=payment_date,
+            counterpart=counterpart,
+            product_name=product_name,
+            service_fee=service_fee,
+            # refund_complete=refund_complete,
+            notes=notes,
         )
 
     def parse_footer_row(self, row: str):
@@ -164,7 +217,6 @@ class AlipayRecord:
                     self.parse_footer_row(row=row)
         assert current_section == self.FileSection.FOOTER, ('File delimiters '
                                                             'not found.')
-        # assert False
 
     def parse_zip_files(self):
         for file_path in self.file_paths:
