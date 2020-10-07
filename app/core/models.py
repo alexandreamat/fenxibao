@@ -7,17 +7,18 @@ class Account(models.Model):
     '''
 
     #: 账户名
-    user_name = models.CharField(max_length=100)
+    username = models.CharField(max_length=100, unique=True)
     #: 用户
-    user_full_name = models.CharField(max_length=100)
+    user_full_name = models.CharField(max_length=100, blank=True)
     
     def __str__(self):
-        return f'{self.name} {self.surname}'
+        return f'{self.username} / {self.user_full_name}'
 
 class Transaction(models.Model):
     '''交易
     '''
 
+    account = models.ForeignKey(to=Account, on_delete=models.CASCADE)
     #: 交易号
     alipay_id = models.CharField(max_length=100, unique=True)
     #: 商家订单号
@@ -29,6 +30,7 @@ class Transaction(models.Model):
     #: 交易对方
     #: 商品名称
     #: 金额（元）
+    amount = models.DecimalField(max_digits=8, decimal_places=2)
     #: 收/支
     #: 交易状态
     #: 服务费（元）

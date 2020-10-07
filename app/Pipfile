@@ -11,6 +11,7 @@ django = "*"
 psycopg2-binary = "*"
 django-environ = "*"
 django-click = "*"
+tqdm = "*"
 
 [requires]
 python_version = "3.8"
