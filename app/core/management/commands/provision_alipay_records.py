@@ -248,6 +248,7 @@ class AlipayRecord:
         else:
             payment_date = None
         # create objects
+        order, _ = Order.objects.get_or_create(alipay_id=order_num)
         RawTransaction.objects.get_or_create(
             account=self.account,
             alipay_id=alipay_id,
@@ -256,13 +257,12 @@ class AlipayRecord:
             origin=origin,
             category=category,
             state=state,
-            order_num=order_num,
+            order=order,
             last_modified_date=last_modified_date,
             payment_date=payment_date,
             counterpart=counterpart,
             product_name=product_name,
             service_fee=service_fee,
-            # refund_complete=refund_complete,
             notes=notes,
         )
 

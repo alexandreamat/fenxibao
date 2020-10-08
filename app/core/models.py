@@ -12,7 +12,13 @@ class Account(models.Model):
     user_full_name = models.CharField(max_length=100, blank=True)
     
     def __str__(self):
-        return f'{self.username} / {self.user_full_name}'
+        return f'{self.username}'
+
+class Order(models.Model):
+    '''订单
+    '''
+
+    alipay_id = models.CharField(max_length=100, unique=True)
 
 class RawTransaction(models.Model):
     '''交易
@@ -62,11 +68,11 @@ class RawTransaction(models.Model):
     origin = models.IntegerField(choices=Origin.choices)
     category = models.IntegerField(choices=Categroy.choices)
     state = models.IntegerField(choices=State.choices)
-    order_num = models.CharField(max_length=100)
+    order = models.ForeignKey(to=Order, on_delete=models.CASCADE, null=True,
+                              blank=True)
     last_modified_date = models.DateTimeField()
     payment_date = models.DateTimeField(null=True, blank=True)
     counterpart = models.CharField(max_length=100)
     product_name = models.CharField(max_length=100)
     service_fee = models.DecimalField(max_digits=8, decimal_places=2)
     notes = models.TextField(blank=True)
-    # refund_complete = None
