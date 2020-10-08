@@ -22,16 +22,6 @@ class RawTransaction(models.Model):
         TAOBAO = 1
         ALIPAY = 2
         OTHER = 3
-
-
-    class FundsState(models.IntegerChoices):
-        # TODO Change name
-        AWAITING_EXPENDITURE = 1
-        PAID = 2
-        FUNDS_TRANSFER = 3
-        FROZEN = 4
-        RECEIVED = 5
-        UNFROZEN = 6
     
 
     class Categroy(models.IntegerChoices):
@@ -72,7 +62,6 @@ class RawTransaction(models.Model):
     origin = models.IntegerField(choices=Origin.choices)
     category = models.IntegerField(choices=Categroy.choices)
     state = models.IntegerField(choices=State.choices)
-    funds_state = models.IntegerField(choices=FundsState.choices, null=True)
     order_num = models.CharField(max_length=100)
     last_modified_date = models.DateTimeField()
     payment_date = models.DateTimeField(null=True, blank=True)

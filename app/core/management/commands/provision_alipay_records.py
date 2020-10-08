@@ -24,6 +24,36 @@ DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 class AlipayRecord:
 
+    class FundsState(Enum):
+        '''Possible values for Funds State
+        
+        Only paid and received are used to sign the amount, the rest is laid 
+        out here for completion.
+
+        Notes:
+            * empty funds state + taobao + transaction successful = paid by others
+            * empty funds state + taobao + awaiting reception confirmation = paid by others
+            * empty funds state + taobao + transaction closed = purchase cancelled
+            * empty funds state + alipay + transaction closed = operation cancelled
+            * empty funds state + alipay + closed = operation cancelled
+            * empty funds state + other + transaction closed = operation cancelled
+            * It is safe to ignore empty funds state operations
+        '''
+
+        #: Paid
+        PAID = auto()
+        #: Income
+        RECEIVED = auto()
+        #: Pending payment, transaction neither complete nor cancelled
+        AWAITING_EXPENDITURE = auto()
+        #: Transfer between own's bank and Alipay
+        FUNDS_TRANSFER = auto()
+        #: Deposits
+        FROZEN = auto()
+        #: Deposits
+        UNFROZEN = auto()
+
+
     TRANSACTION_ORIGIN_CHOICES = {
         #: Taobao purchases, refunds, installments
         '淘宝': RawTransaction.Origin.TAOBAO,
@@ -78,25 +108,12 @@ class AlipayRecord:
         '交易关闭': RawTransaction.State.TRANSACTION_CLOSED,
     }
     FUNDS_STATE_CHOICES = {
-        #: Pending payment, transaction neither complete nor cancelled
-        '待支出': RawTransaction.FundsState.AWAITING_EXPENDITURE,
-        #: Paid
-        '已支出': RawTransaction.FundsState.PAID,
-        #: Transfer between own's bank and Alipay
-        '资金转移': RawTransaction.FundsState.FUNDS_TRANSFER,
-        #: Deposits
-        '冻结': RawTransaction.FundsState.FROZEN,
-        #: Income
-        '已收入': RawTransaction.FundsState.RECEIVED,
-        #: Deposits
-        '解冻': RawTransaction.FundsState.UNFROZEN,
-        #: empty funds state + taobao + transaction successful = paid by others
-        #: empty funds state + taobao + awaiting reception confirmation = paid by others
-        #: empty funds state + taobao + transaction closed = purchase cancelled
-        #: empty funds state + alipay + transaction closed = operation cancelled
-        #: empty funds state + alipay + closed = operation cancelled
-        #: empty funds state + other + transaction closed = operation cancelled
-        #: It is safe to ignore empty funds state operations
+        '待支出': FundsState.AWAITING_EXPENDITURE,
+        '已支出': FundsState.PAID,
+        '资金转移': FundsState.FUNDS_TRANSFER,
+        '冻结': FundsState.FROZEN,
+        '已收入': FundsState.RECEIVED,
+        '解冻': FundsState.UNFROZEN,
     }
     PRODUCT_NAME_PATTERNS = {
         #: Transfers: when the issueing party writes a note, then that is used as a product name
@@ -208,9 +225,9 @@ class AlipayRecord:
         state = self.TRANSACTION_STATE_CHOICES.get(state)
         funds_state = self.FUNDS_STATE_CHOICES.get(funds_state)
         # Give complete and sign amount
-        if funds_state == RawTransaction.FundsState.PAID:
+        if funds_state == FundsState.PAID:
             amount = -(amount + service_fee) + refund_complete
-        elif funds_state == RawTransaction.FundsState.RECEIVED:
+        elif funds_state == FundsState.RECEIVED:
             amount = amount
         else:
             return
@@ -239,7 +256,6 @@ class AlipayRecord:
             origin=origin,
             category=category,
             state=state,
-            funds_state=funds_state,
             order_num=order_num,
             last_modified_date=last_modified_date,
             payment_date=payment_date,
