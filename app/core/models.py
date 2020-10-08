@@ -25,6 +25,7 @@ class RawTransaction(models.Model):
 
 
     class FundsState(models.IntegerChoices):
+        # TODO Change name
         AWAITING_EXPENDITURE = 1
         PAID = 2
         FUNDS_TRANSFER = 3

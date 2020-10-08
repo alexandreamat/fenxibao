@@ -151,6 +151,7 @@ class AlipayRecord:
         SERVICE_FEE = 12 #: 服务费（元）
         #: some old transactions have a returned amount in the same 
         #:  transaction, should be combined with amount
+        # TODO rename to refunded amount or similar
         REFUND_COMPLETE = 13 #: 成功退款（元）
         #: (optional)
         NOTES = 14 #: 备注
@@ -206,6 +207,13 @@ class AlipayRecord:
         sign = self.TRANSACTION_SIGN_CHOICES.get(sign)
         state = self.TRANSACTION_STATE_CHOICES.get(state)
         funds_state = self.FUNDS_STATE_CHOICES.get(funds_state)
+        # Give complete and sign amount
+        if funds_state == RawTransaction.FundsState.PAID:
+            amount = -(amount + service_fee) + refund_complete
+        elif funds_state == RawTransaction.FundsState.RECEIVED:
+            amount = amount
+        else:
+            return
         # Create datetime objects
         creation_date = datetime.datetime.strptime(
             creation_date,
