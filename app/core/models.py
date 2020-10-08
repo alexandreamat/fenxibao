@@ -18,6 +18,7 @@ class Order(models.Model):
     '''订单
     '''
 
+    # TODO move counterpart and product here, product name is the same provided there is the same order numnber
     alipay_id = models.CharField(max_length=100, unique=True)
 
 class RawTransaction(models.Model):

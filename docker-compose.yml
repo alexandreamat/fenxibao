@@ -13,7 +13,7 @@ services:
             # - ./db:/var/lib/postgresql/data/postgresql.conf
             - ./data:/var/lib/postgresql/data
         ports:
-            - 54320:5432
+            - 5432:5432
 
     app:
         build: ./app
@@ -29,8 +29,19 @@ services:
             - db
         command: python manage.py runserver 0.0.0.0:8000
 
-
-    # pgadmin:
+    pgadmin:
+        image: dpage/pgadmin4:latest
+        depends_on:
+            - db
+        ports:
+            - "80:80"
+        environment:
+            - PGADMIN_DEFAULT_EMAIL=pgadmin4@pgadmin.org
+            - PGADMIN_DEFAULT_PASSWORD=admin
+            - PGADMIN_LISTEN_ADDRESS=0.0.0.0
+        volumes:
+            # - ./pgadmin/pgpass.conf:/tmp/pgpass.conf
+            - ./pgadmin/servers.json:/pgadmin4/servers.json
     
     # schemaspy:
 
