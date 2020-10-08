@@ -70,7 +70,6 @@ class RawTransaction(models.Model):
     amount = models.DecimalField(max_digits=8, decimal_places=2)
     origin = models.IntegerField(choices=Origin.choices)
     category = models.IntegerField(choices=Categroy.choices)
-    sign = models.IntegerField(choices=Sign.choices, null=True)
     state = models.IntegerField(choices=State.choices)
     funds_state = models.IntegerField(choices=FundsState.choices, null=True)
     order_num = models.CharField(max_length=100)

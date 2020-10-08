@@ -230,7 +230,6 @@ class AlipayRecord:
             amount=amount,
             origin=origin,
             category=category,
-            sign=sign,
             state=state,
             funds_state=funds_state,
             order_num=order_num,
