@@ -74,7 +74,7 @@ class RawTransaction(models.Model):
     state = models.IntegerField(choices=State.choices)
     funds_state = models.IntegerField(choices=FundsState.choices, null=True)
     order_num = models.CharField(max_length=100)
-    last_modified_date = models.DateTimeField(null=True, blank=True)
+    last_modified_date = models.DateTimeField()
     payment_date = models.DateTimeField(null=True, blank=True)
     counterpart = models.CharField(max_length=100)
     product_name = models.CharField(max_length=100)

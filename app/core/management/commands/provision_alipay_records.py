@@ -84,7 +84,7 @@ class AlipayRecord:
         '已支出': RawTransaction.FundsState.PAID,
         #: Transfer between own's bank and Alipay
         '资金转移': RawTransaction.FundsState.FUNDS_TRANSFER,
-        #: Depositrs
+        #: Deposits
         '冻结': RawTransaction.FundsState.FROZEN,
         #: Income
         '已收入': RawTransaction.FundsState.RECEIVED,
@@ -211,13 +211,10 @@ class AlipayRecord:
             creation_date,
             DATETIME_FORMAT,
         )
-        if last_modified_date:
-            last_modified_date = datetime.datetime.strptime(
-                last_modified_date,
-                DATETIME_FORMAT,
-            )
-        else:
-            last_modified_date = None
+        last_modified_date = datetime.datetime.strptime(
+            last_modified_date,
+            DATETIME_FORMAT,
+        )
         if payment_date:
             payment_date = datetime.datetime.strptime(
                 payment_date,
