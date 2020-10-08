@@ -19,51 +19,92 @@ FOOTER_DELIMITER = '------------------------------------------------------------
 ENCODING = 'gb18030'
 PATTERN = r':\[(.*?)\]'
 ACCOUNT_ZH = '账号'
-
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
 class AlipayRecord:
 
-
     TRANSACTION_ORIGIN_CHOICES = {
+        #: Taobao purchases, refunds, installments
         '淘宝': RawTransaction.Origin.TAOBAO,
+        #: Transfers between friends, transfer to bank accounts,
+        #: transfers between own's bank and alipay (don't have order number)
+        #: utilities payments (have order number)
         '支付宝网站': RawTransaction.Origin.ALIPAY,
+        #: Physical shops + meituan + eleme + hema
         '其他（包括阿里巴巴和外部商家）': RawTransaction.Origin.OTHER,
     }
     TRANSACTION_TYPE_CHOICES = {
+        #: Only for taobao transactions, have funds state = awaiting payment
         '支付宝担保交易': RawTransaction.Categroy.ALIPAY_PROTECTED,
+        # For deposits, no actual transaction
         '预订交易': RawTransaction.Categroy.BOOKING,
+        #: Most of transactions with normal shops and some taobao purchases
         '即时到账交易': RawTransaction.Categroy.INSTANT,
     }
     TRANSACTION_SIGN_CHOICES = {
         '支出': RawTransaction.Sign.EXPENDITURE,
         '收入': RawTransaction.Sign.INCOME,
-        # '': Transaction.Sign.EMPTY,
+        #: empty sign + taobao + transaction successful = paid by others
+        #: empty sign + taobao + transaction closed = purchase cancelled
+        #: empty sign + alipay + transaction successful = transfers between bank and alipay
+        #: empty sign + alipay + transaction closed = operation cancelled
+        #: empty sign + alipay + closed = operation cancelled
+        #: empty sign + alipay + failure = operation cancelled
+        #: empty sign + other + transaction closed = operation cancelled
+        #: empty sign + other + frozen / unfrozen = deposit
+        #: It is safe to ignore empty sign operations
     }
     TRANSACTION_STATE_CHOICES = {
+        #: awaiting reception confirmation + taobao + expenditure = normal transaction
         '等待确认收货': RawTransaction.State.AWAITING_RECEPTION_CONFIRMATION,
         '已关闭': RawTransaction.State.CLOSED,
+        #: paid + taobao + expenditure = paid in installments
         '支付成功': RawTransaction.State.PAID,
         '转账失败': RawTransaction.State.TRANSFER_FAILED,
+        #: added value + alipay + expenditure = normal transaction
         '充值成功': RawTransaction.State.ADDED_VALUE,
         '失败': RawTransaction.State.FAILURE,
         '解冻成功': RawTransaction.State.UNFREEZED,
+        #: paid by others + alipay + expenditure = rare normal transaction
         '代付成功': RawTransaction.State.PAID_BY_OTHERS,
         '冻结成功': RawTransaction.State.FREEZED,
+        #: awaiting payment + taobao + expenditure = operation cancelled
         '等待付款': RawTransaction.State.AWAITING_PAYMENT,
+        #: refunded + other = refund
         '退款成功': RawTransaction.State.REFUNDED,
         '交易成功': RawTransaction.State.TRANSACTION_SUCCESSFUL,
+        #: transaction closed + taobao + expenditure = totally refunded purchase
         '交易关闭': RawTransaction.State.TRANSACTION_CLOSED,
     }
     FUNDS_STATE_CHOICES = {
+        #: Pending payment, transaction neither complete nor cancelled
         '待支出': RawTransaction.FundsState.AWAITING_EXPENDITURE,
+        #: Paid
         '已支出': RawTransaction.FundsState.PAID,
+        #: Transfer between own's bank and Alipay
         '资金转移': RawTransaction.FundsState.FUNDS_TRANSFER,
+        #: Depositrs
         '冻结': RawTransaction.FundsState.FROZEN,
+        #: Income
         '已收入': RawTransaction.FundsState.RECEIVED,
+        #: Deposits
         '解冻': RawTransaction.FundsState.UNFROZEN,
-        # '': Transaction.FundsState.EMPTY,
+        #: empty funds state + taobao + transaction successful = paid by others
+        #: empty funds state + taobao + awaiting reception confirmation = paid by others
+        #: empty funds state + taobao + transaction closed = purchase cancelled
+        #: empty funds state + alipay + transaction closed = operation cancelled
+        #: empty funds state + alipay + closed = operation cancelled
+        #: empty funds state + other + transaction closed = operation cancelled
+        #: It is safe to ignore empty funds state operations
+    }
+    PRODUCT_NAME_PATTERNS = {
+        #: Transfers: when the issueing party writes a note, then that is used as a product name
+        r'收款': RawTransaction.ProductName.ALIPAY_TRANSFER,
+        r'转账': RawTransaction.ProductName.ALIPAY_TRANSFER,
+        r'付款-.*': RawTransaction.ProductName.ALIPAY_TRANSFER,
+        r'转账到银行卡-.*': RawTransaction.ProductName.BANK_TRANSFER,
+
     }
 
     class FileSection(Enum):
@@ -80,21 +121,41 @@ class AlipayRecord:
         number
         '''
 
+        #: Transaction ID in Alipay servers
         ALIPAY_ID = 0 #: 交易号
+        #: Order ID, for purchases and bills; transfers do not have order ID (optional)
+        #:  Taobao prefixes this value with either TX00P where X is 1 or 2
+        #:  Taobao keeps reusing this number as long as new transactions are related to it
+        #:  Utilities companies keeps reusing this number month after month for the same service
+        #:  Only ORIGIN = alipay will leave this empty
         ORDER_NUM = 1 #: 商家订单号
         CREATION_DATE = 2 #: 交易创建时间
         LAST_MODIFIED_DATE = 3 #: 最近修改时间
+        #: (optional)
         PAYMENT_DATE = 4 #: 付款时间
+        #: Source of transaction: Taobao, Alipay, or others
         ORIGIN = 5 #: 交易来源地
+        #: Type of transaction (does not tell us much)
         TYPE = 6 #: 类型
+        #: for purchases, shop name; for transfers, account name; deposits have
+        #:  no counterpart (optional)
         COUNTERPART = 7 #: 交易对方
+        #: Item name
         PRODUCT_NAME = 8 #: 商品名称
+        #: Transaction amount, always positive
         AMOUNT = 9 #: 金额（元）
+        # Expenditure / income (optional)
         SIGN = 10 #: 收/支
         STATE = 11 #: 交易状态
+        #: only for origin = Alipay, is charged together with the amount
         SERVICE_FEE = 12 #: 服务费（元）
+        #: some old transactions have a returned amount in the same 
+        #:  transaction, should be combined with amount
         REFUND_COMPLETE = 13 #: 成功退款（元）
+        #: (optional)
         NOTES = 14 #: 备注
+        #: More truthful and detailed version of sign, since it has less empty 
+        #:  values, and no false expenditure (optional)
         FUNDS_STATE = 15 #: 资金状态
 
 
