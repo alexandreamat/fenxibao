@@ -5,13 +5,14 @@ import types
 import re
 import datetime
 from tqdm import tqdm
+from decimal import Decimal
 from enum import Enum, auto
 
 
 import djclick as click
 from django.db import transaction
 
-from core.models import RawTransaction, Account
+from core.models import RawTransaction, Account, Order
 
 
 HEADER_DELIMITER = '---------------------------------交易记录明细列表------------------------------------\n'
@@ -20,6 +21,7 @@ ENCODING = 'gb18030'
 PATTERN = r':\[(.*?)\]'
 ACCOUNT_ZH = '账号'
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+TWOPLACES = Decimal(10) ** -2
 
 
 class AlipayRecord:
@@ -115,14 +117,13 @@ class AlipayRecord:
         '已收入': FundsState.RECEIVED,
         '解冻': FundsState.UNFROZEN,
     }
-    PRODUCT_NAME_PATTERNS = {
-        #: Transfers: when the issueing party writes a note, then that is used as a product name
-        r'收款': RawTransaction.ProductName.ALIPAY_TRANSFER,
-        r'转账': RawTransaction.ProductName.ALIPAY_TRANSFER,
-        r'付款-.*': RawTransaction.ProductName.ALIPAY_TRANSFER,
-        r'转账到银行卡-.*': RawTransaction.ProductName.BANK_TRANSFER,
-
-    }
+    # PRODUCT_NAME_PATTERNS = {
+    #     #: Transfers: when the issueing party writes a note, then that is used as a product name
+    #     r'收款': RawTransaction.ProductName.ALIPAY_TRANSFER,
+    #     r'转账': RawTransaction.ProductName.ALIPAY_TRANSFER,
+    #     r'付款-.*': RawTransaction.ProductName.ALIPAY_TRANSFER,
+    #     r'转账到银行卡-.*': RawTransaction.ProductName.BANK_TRANSFER,
+    # }
 
     class FileSection(Enum):
         HEADER = auto()
@@ -147,9 +148,9 @@ class AlipayRecord:
         #:  Only ORIGIN = alipay will leave this empty
         ORDER_NUM = 1 #: 商家订单号
         CREATION_DATE = 2 #: 交易创建时间
-        LAST_MODIFIED_DATE = 3 #: 最近修改时间
         #: (optional)
-        PAYMENT_DATE = 4 #: 付款时间
+        PAYMENT_DATE = 3 #: 付款时间
+        LAST_MODIFIED_DATE = 4 #: 最近修改时间
         #: Source of transaction: Taobao, Alipay, or others
         ORIGIN = 5 #: 交易来源地
         #: Type of transaction (does not tell us much)
@@ -224,10 +225,14 @@ class AlipayRecord:
         sign = self.TRANSACTION_SIGN_CHOICES.get(sign)
         state = self.TRANSACTION_STATE_CHOICES.get(state)
         funds_state = self.FUNDS_STATE_CHOICES.get(funds_state)
+        # Cast to the correct types
+        amount = Decimal(amount).quantize(TWOPLACES)
+        service_fee = Decimal(service_fee).quantize(TWOPLACES)
+        refund_complete = Decimal(refund_complete).quantize(TWOPLACES)
         # Give complete and sign amount
-        if funds_state == FundsState.PAID:
+        if funds_state == self.FundsState.PAID:
             amount = -(amount + service_fee) + refund_complete
-        elif funds_state == FundsState.RECEIVED:
+        elif funds_state == self.FundsState.RECEIVED:
             amount = amount
         else:
             return
@@ -267,12 +272,11 @@ class AlipayRecord:
         )
 
     def parse_footer_row(self, row: str):
-        pass
-        # if '用户' in row:
-        #     match = re.search(r'用户:.*', row)
-        #     if match:
-        #         print(match)
-        #         self.user_full_name = match.group(1)
+        if '用户' in row:
+            match = re.search(r'(?<=用户:).*', row)
+            if match:
+                self.account.user_full_name = match.group(0)
+                self.account.save()
   
     def parse_ext_file(self, ext_file: zipfile.ZipExtFile, file_size: int):
         current_section = self.FileSection.HEADER
