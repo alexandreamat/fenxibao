@@ -12,7 +12,7 @@ class Account(models.Model):
     user_full_name = models.CharField(max_length=100, blank=True)
     
     def __str__(self):
-        return f'{self.username}'
+        return self.username
 
 class Order(models.Model):
     '''订单
@@ -20,6 +20,15 @@ class Order(models.Model):
 
     # TODO move counterpart and product here, product name is the same provided there is the same order numnber
     alipay_id = models.CharField(max_length=100, unique=True)
+
+
+class Counterpart(models.Model):
+
+    name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.name
+
 
 class RawTransaction(models.Model):
     '''交易
@@ -73,7 +82,7 @@ class RawTransaction(models.Model):
                               blank=True)
     last_modified_date = models.DateTimeField()
     payment_date = models.DateTimeField(null=True, blank=True)
-    counterpart = models.CharField(max_length=100)
+    counterpart = models.ForeignKey(to=Counterpart, on_delete=models.CASCADE)
     product_name = models.CharField(max_length=100)
     service_fee = models.DecimalField(max_digits=8, decimal_places=2)
     notes = models.TextField(blank=True)

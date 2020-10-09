@@ -12,7 +12,7 @@ from enum import Enum, auto
 import djclick as click
 from django.db import transaction
 
-from core.models import RawTransaction, Account, Order
+from core.models import RawTransaction, Account, Order, Counterpart
 
 
 HEADER_DELIMITER = '---------------------------------交易记录明细列表------------------------------------\n'
@@ -229,7 +229,7 @@ class AlipayRecord:
         amount = Decimal(amount).quantize(TWOPLACES)
         service_fee = Decimal(service_fee).quantize(TWOPLACES)
         refund_complete = Decimal(refund_complete).quantize(TWOPLACES)
-        # Give complete and sign amount
+        # Complete and sign amount
         if funds_state == self.FundsState.PAID:
             amount = -(amount + service_fee) + refund_complete
         elif funds_state == self.FundsState.RECEIVED:
@@ -253,7 +253,11 @@ class AlipayRecord:
         else:
             payment_date = None
         # create objects
-        order, _ = Order.objects.get_or_create(alipay_id=order_num)
+        if order_num:
+            order, _ = Order.objects.get_or_create(alipay_id=order_num)
+        else:
+            order = None
+        counterpart, _ = Counterpart.objects.get_or_create(name=counterpart)
         RawTransaction.objects.get_or_create(
             account=self.account,
             alipay_id=alipay_id,
