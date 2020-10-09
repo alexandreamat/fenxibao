@@ -7,22 +7,13 @@ class Account(models.Model):
     '''
 
     #: 账户名
-    username = models.CharField(max_length=100, unique=True)
+    username = models.CharField(max_length=100, unique=True, null=True,
+                                blank=True)
     #: 用户
-    user_full_name = models.CharField(max_length=100, blank=True)
+    user_full_name = models.CharField(max_length=100, blank=True, null=True)
     
     def __str__(self):
         return self.username
-
-class Order(models.Model):
-    '''订单
-    '''
-
-    # TODO move counterpart and product here, product name is the same provided there is the same order numnber
-    alipay_id = models.CharField(max_length=100, unique=True)
-
-    def __str__(self):
-        return self.alipay_id
 
 
 class Counterpart(models.Model):
@@ -31,6 +22,30 @@ class Counterpart(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Order(models.Model):
+    '''订单
+    '''
+
+    alipay_id = models.CharField(max_length=100, unique=True)
+    counterpart = models.ForeignKey(to=Counterpart, on_delete=models.CASCADE)
+    product_name = models.CharField(max_length=100)
+    
+    @property
+    def amount(self):
+        return sum([rt.amount for rt in self.rawtransaction_set.all()])
+
+    @property
+    def creation_date(self):
+        return min([rt.creation_date for rt in self.rawtransaction_set.all()])
+    
+    @property
+    def last_modified_date(self):
+        return max([rt.last_modified_date for rt in self.rawtransaction_set.all()])
+
+    def __str__(self):
+        return self.product_name
 
 
 class RawTransaction(models.Model):
@@ -70,10 +85,6 @@ class RawTransaction(models.Model):
         TRANSACTION_CLOSED = 13
 
 
-    class RefundComplete(models.IntegerChoices):
-        pass
-
-
     account = models.ForeignKey(to=Account, on_delete=models.CASCADE)
     alipay_id = models.CharField(max_length=100, unique=True)
     creation_date = models.DateTimeField()
@@ -85,7 +96,11 @@ class RawTransaction(models.Model):
                               blank=True)
     last_modified_date = models.DateTimeField()
     payment_date = models.DateTimeField(null=True, blank=True)
-    counterpart = models.ForeignKey(to=Counterpart, on_delete=models.CASCADE)
-    product_name = models.CharField(max_length=100)
-    service_fee = models.DecimalField(max_digits=8, decimal_places=2)
+    counterpart = models.ForeignKey(to=Counterpart, on_delete=models.CASCADE, null=True, blank=True)
     notes = models.TextField(blank=True)
+
+    def __str__(self):
+        if self.origin == self.Origin.ALIPAY:
+            return self.counterpart.name
+        else:
+            return self.order.product_name

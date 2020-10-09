@@ -253,11 +253,26 @@ class AlipayRecord:
         else:
             payment_date = None
         # create objects
-        if order_num:
-            order, _ = Order.objects.get_or_create(alipay_id=order_num)
-        else:
-            order = None
         counterpart, _ = Counterpart.objects.get_or_create(name=counterpart)
+        if order_num and origin != RawTransaction.Origin.ALIPAY:
+            # Purchases have order number, counterpart is attached to it
+            try:
+                order = Order.objects.get(alipay_id=order_num)
+                # subsequent transactions are prefixed e.g. with `refund`
+                if product_name in order.product_name:
+                    order.product_name = product_name
+                    order.save()
+            except Order.DoesNotExist:
+                order = Order.objects.create(
+                    alipay_id=order_num,
+                    product_name=product_name,
+                    counterpart=counterpart,
+                )
+            counterpart = None
+        else:
+            # Alipay operations order number does not make sense
+            # instead, counterpart is important
+            order = None
         RawTransaction.objects.get_or_create(
             account=self.account,
             alipay_id=alipay_id,
@@ -270,8 +285,6 @@ class AlipayRecord:
             last_modified_date=last_modified_date,
             payment_date=payment_date,
             counterpart=counterpart,
-            product_name=product_name,
-            service_fee=service_fee,
             notes=notes,
         )
 
