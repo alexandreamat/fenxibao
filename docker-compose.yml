@@ -43,6 +43,13 @@ services:
             # - ./pgadmin/pgpass.conf:/tmp/pgpass.conf
             - ./pgadmin/servers.json:/pgadmin4/servers.json
     
-    # schemaspy:
-
-    # grafana: 
+    schemaspy:
+        image: schemaspy/schemaspy:latest
+        volumes:
+            - ./schemaspy/schemaspy.properties:/schemaspy.properties
+            - ./schemaspy/output:/output
+        depends_on:
+            - db
+        command: -I "_timescaledb_internal.*|django_.*|users.*|auth.*" -noexportedkeys
+    
+    # grafana:
