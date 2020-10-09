@@ -21,6 +21,9 @@ class Order(models.Model):
     # TODO move counterpart and product here, product name is the same provided there is the same order numnber
     alipay_id = models.CharField(max_length=100, unique=True)
 
+    def __str__(self):
+        return self.alipay_id
+
 
 class Counterpart(models.Model):
 
