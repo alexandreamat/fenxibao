@@ -12,7 +12,7 @@ from enum import Enum, auto
 import djclick as click
 from django.db import transaction
 
-from core.models import RawTransaction, Account, Order, Counterpart
+from core.models import RawTransaction, Account, Order
 
 
 HEADER_DELIMITER = '---------------------------------交易记录明细列表------------------------------------\n'
@@ -60,7 +60,7 @@ class AlipayRecord:
         #: Taobao purchases, refunds, installments
         '淘宝': RawTransaction.Origin.TAOBAO,
         #: Transfers between friends, transfer to bank accounts,
-        #: transfers between own's bank and alipay (don't have order number)
+        #: transfers between own's bank and alipay (might have order number)
         #: utilities payments (have order number)
         '支付宝网站': RawTransaction.Origin.ALIPAY,
         #: Physical shops + meituan + eleme + hema
@@ -145,7 +145,7 @@ class AlipayRecord:
         #:  Taobao prefixes this value with either TX00P where X is 1 or 2
         #:  Taobao keeps reusing this number as long as new transactions are related to it
         #:  Utilities companies keeps reusing this number month after month for the same service
-        #:  Only ORIGIN = alipay will leave this empty
+        #:  Only ORIGIN = alipay will leave this empty, but not always
         ORDER_NUM = 1 #: 商家订单号
         CREATION_DATE = 2 #: 交易创建时间
         #: (optional)
@@ -171,7 +171,8 @@ class AlipayRecord:
         #:  transaction, should be combined with amount
         # TODO rename to refunded amount or similar
         REFUND_COMPLETE = 13 #: 成功退款（元）
-        #: (optional)
+        #: Notes (optional). Observation: origin = alipay + notes empty -> utilities
+        #: or other commercial stuff. origin = alipay + some notes -> transfers!
         NOTES = 14 #: 备注
         #: More truthful and detailed version of sign, since it has less empty 
         #:  values, and no false expenditure (optional)
@@ -189,7 +190,8 @@ class AlipayRecord:
             if match:
                 username = match.group(1)
                 self.account, _ = Account.objects.get_or_create(
-                    username=username
+                    username=username,
+                    kind=Account.Kind.PERSONAL,
                 )
         # if '起始日期' in row:
         #     match = re.search(r'起始日期' + PATTERN, row)
@@ -253,9 +255,20 @@ class AlipayRecord:
         else:
             payment_date = None
         # create objects
-        counterpart, _ = Counterpart.objects.get_or_create(name=counterpart)
-        if order_num and origin != RawTransaction.Origin.ALIPAY:
-            # Purchases have order number, counterpart is attached to it
+        if origin == RawTransaction.Origin.ALIPAY and not(order_num and not notes):
+            # personal transfers, might have order_num, altough irrelevant
+            # instead, counterpart is important
+            counterpart, _ = Account.objects.get_or_create(
+                user_full_name=counterpart,
+                kind=Account.Kind.PERSONAL,
+            )
+            order = None
+        elif order_num:
+            # commercial transactions
+            counterpart, _ = Account.objects.get_or_create(
+                user_full_name=counterpart,
+                kind=Account.Kind.ENTERPRISE,
+            )
             try:
                 order = Order.objects.get(alipay_id=order_num)
                 # subsequent transactions are prefixed e.g. with `refund`
@@ -266,13 +279,12 @@ class AlipayRecord:
                 order = Order.objects.create(
                     alipay_id=order_num,
                     product_name=product_name,
-                    counterpart=counterpart,
+                    other_party_account=counterpart,
                 )
             counterpart = None
         else:
-            # Alipay operations order number does not make sense
-            # instead, counterpart is important
-            order = None
+            # ignore commercial transactions without order number
+            return
         RawTransaction.objects.get_or_create(
             account=self.account,
             alipay_id=alipay_id,
@@ -284,7 +296,7 @@ class AlipayRecord:
             order=order,
             last_modified_date=last_modified_date,
             payment_date=payment_date,
-            counterpart=counterpart,
+            other_party_account=counterpart,
             notes=notes,
         )
 
@@ -308,6 +320,7 @@ class AlipayRecord:
                         continue
                     self.parse_header_row(row=row)
                 elif current_section == self.FileSection.LABELS:
+                    # TODO check labels order
                     current_section = self.FileSection.BODY
                     continue
                 elif current_section == self.FileSection.BODY:

@@ -2,7 +2,7 @@ from django.contrib import admin
 
 # Register your models here.
 
-from core.models import Account, RawTransaction, Order, Counterpart
+from core.models import Account, RawTransaction, Order
 
 
 class BaseInline(admin.TabularInline):
@@ -17,13 +17,14 @@ class RawTransactionAdmin(admin.ModelAdmin):
                      'alipay_id', 'account__username')
 
 
-class RawTransactionInline(BaseInline):
-    model = RawTransaction
-    fields = RawTransactionAdmin.list_display
-    readonly_fields = fields
-
-
 class OrderAdmin(admin.ModelAdmin):
+
+    class RawTransactionInline(BaseInline):
+        model = RawTransaction
+        fields = RawTransactionAdmin.list_display
+        readonly_fields = fields
+
+
     list_display = ('product_name', 'creation_date', 'amount')
     search_fields = ('product_name', 'alipay_id')
     readonly_fields = ('amount', 'creation_date')
@@ -38,15 +39,23 @@ class OrderInline(BaseInline):
     readonly_fields = fields
 
 
-class CounterpartAdmin(admin.ModelAdmin):
-    search_fields = ('name',)
+class AccountAdmin(admin.ModelAdmin):
+
+    class RawTransactionInline(BaseInline):
+        model = RawTransaction
+        fields = RawTransactionAdmin.list_display
+        readonly_fields = fields
+        fk_name = 'other_party_account'
+
+
+    list_display = ('username', 'user_full_name', 'kind')
+    search_fields = ('username', 'user_full_name')
     inlines = [
         RawTransactionInline,
         OrderInline,
     ]
 
 
-admin.site.register(Account)
+admin.site.register(Account, AccountAdmin)
 admin.site.register(Order, OrderAdmin)
 admin.site.register(RawTransaction, RawTransactionAdmin)
-admin.site.register(Counterpart, CounterpartAdmin)
