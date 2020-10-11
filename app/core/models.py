@@ -27,9 +27,13 @@ class Order(models.Model):
     '''
 
     alipay_id = models.CharField(max_length=100, unique=True)
-    other_party_account = models.ForeignKey(to=Account,
-                                            on_delete=models.CASCADE,
-                                            related_name='order_other_party_accounts')
+    account = models.ForeignKey(to=Account, on_delete=models.CASCADE,
+                                related_name='order_account')
+    other_party_account = models.ForeignKey(
+        to=Account,
+        on_delete=models.CASCADE,
+        related_name='order_other_party_accounts'
+    )
     product_name = models.CharField(max_length=100)
     
     @property
@@ -87,7 +91,8 @@ class RawTransaction(models.Model):
 
 
     account = models.ForeignKey(to=Account, on_delete=models.CASCADE,
-                                related_name='transaction_accounts')
+                                related_name='transaction_accounts',
+                                blank=True, null=True)
     alipay_id = models.CharField(max_length=100, unique=True)
     creation_date = models.DateTimeField()
     amount = models.DecimalField(max_digits=8, decimal_places=2)
@@ -98,9 +103,13 @@ class RawTransaction(models.Model):
                               blank=True)
     last_modified_date = models.DateTimeField()
     payment_date = models.DateTimeField(null=True, blank=True)
-    other_party_account = models.ForeignKey(to=Account, null=True, blank=True,
-                                            on_delete=models.CASCADE,
-                                            related_name='transaction_other_party_accounts')
+    other_party_account = models.ForeignKey(
+        to=Account,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='transaction_other_party_accounts'
+    )
     notes = models.TextField(blank=True)
 
     def __str__(self):

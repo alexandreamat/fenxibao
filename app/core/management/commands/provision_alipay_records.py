@@ -255,7 +255,8 @@ class AlipayRecord:
         else:
             payment_date = None
         # create objects
-        if origin == RawTransaction.Origin.ALIPAY and not(order_num and not notes):
+        if origin == RawTransaction.Origin.ALIPAY and not(order_num
+                                                          and not notes):
             # personal transfers, might have order_num, altough irrelevant
             # instead, counterpart is important
             counterpart, _ = Account.objects.get_or_create(
@@ -263,6 +264,7 @@ class AlipayRecord:
                 kind=Account.Kind.PERSONAL,
             )
             order = None
+            account = self.account
         elif order_num:
             # commercial transactions
             counterpart, _ = Account.objects.get_or_create(
@@ -279,14 +281,16 @@ class AlipayRecord:
                 order = Order.objects.create(
                     alipay_id=order_num,
                     product_name=product_name,
+                    account=self.account,
                     other_party_account=counterpart,
                 )
+            account = None
             counterpart = None
         else:
             # ignore commercial transactions without order number
             return
         RawTransaction.objects.get_or_create(
-            account=self.account,
+            account=account,
             alipay_id=alipay_id,
             creation_date=creation_date,
             amount=amount,

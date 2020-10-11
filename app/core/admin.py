@@ -12,9 +12,9 @@ class BaseInline(admin.TabularInline):
 
 
 class RawTransactionAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'account', 'creation_date', 'amount')
-    search_fields = ('order__alipay_id',
-                     'alipay_id', 'account__username')
+    common = ('account', 'other_party_account', 'order')
+    list_display = ('__str__',) + common + ('creation_date', 'amount')
+    search_fields = common + ('alipay_id',)
 
 
 class OrderAdmin(admin.ModelAdmin):
@@ -25,9 +25,9 @@ class OrderAdmin(admin.ModelAdmin):
         readonly_fields = fields
 
 
-    list_display = ('product_name', 'creation_date', 'amount')
-    search_fields = ('product_name', 'alipay_id')
-    readonly_fields = ('amount', 'creation_date')
+    common = ('account', 'other_party_account', 'product_name')
+    list_display = common + ('creation_date', 'amount')
+    search_fields = common + ('alipay_id',)
     inlines = [
         RawTransactionInline,
     ]
@@ -37,6 +37,7 @@ class OrderInline(BaseInline):
     model = Order
     fields = OrderAdmin.list_display
     readonly_fields = fields
+    fk_name = 'other_party_account'
 
 
 class AccountAdmin(admin.ModelAdmin):
@@ -48,8 +49,9 @@ class AccountAdmin(admin.ModelAdmin):
         fk_name = 'other_party_account'
 
 
-    list_display = ('username', 'user_full_name', 'kind')
-    search_fields = ('username', 'user_full_name')
+    common = ('username', 'user_full_name')
+    list_display = common + ('kind',)
+    search_fields = common
     inlines = [
         RawTransactionInline,
         OrderInline,
