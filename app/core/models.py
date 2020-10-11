@@ -22,38 +22,38 @@ class Account(models.Model):
         return self.user_full_name
 
 
-class Order(models.Model):
+class Operation(models.Model):
     '''订单
     '''
 
     alipay_id = models.CharField(max_length=100, unique=True)
     account = models.ForeignKey(to=Account, on_delete=models.CASCADE,
-                                related_name='order_account')
+                                related_name='operation_account')
     other_party_account = models.ForeignKey(
         to=Account,
         on_delete=models.CASCADE,
-        related_name='order_other_party_accounts'
+        related_name='operation_other_party_accounts'
     )
     product_name = models.CharField(max_length=100)
     
     @property
     def amount(self):
-        return sum([rt.amount for rt in self.rawtransaction_set.all()])
+        return sum([rt.amount for rt in self.transaction_set.all()])
 
     @property
     def creation_date(self):
-        return min([rt.creation_date for rt in self.rawtransaction_set.all()])
+        return min([rt.creation_date for rt in self.transaction_set.all()])
     
     @property
     def last_modified_date(self):
         return max([rt.last_modified_date
-                    for rt in self.rawtransaction_set.all()])
+                    for rt in self.transaction_set.all()])
 
     def __str__(self):
         return self.product_name
 
 
-class RawTransaction(models.Model):
+class Transaction(models.Model):
     '''交易
     '''
 
@@ -99,8 +99,8 @@ class RawTransaction(models.Model):
     origin = models.IntegerField(choices=Origin.choices)
     category = models.IntegerField(choices=Categroy.choices)
     state = models.IntegerField(choices=State.choices)
-    order = models.ForeignKey(to=Order, on_delete=models.CASCADE, null=True,
-                              blank=True)
+    operation = models.ForeignKey(to=Operation, on_delete=models.CASCADE,
+                                  null=True, blank=True)
     last_modified_date = models.DateTimeField()
     payment_date = models.DateTimeField(null=True, blank=True)
     other_party_account = models.ForeignKey(
@@ -113,7 +113,7 @@ class RawTransaction(models.Model):
     notes = models.TextField(blank=True)
 
     def __str__(self):
-        if self.order:
-            return f'Commercial transaction with {self.order.other_party_account.user_full_name}'
+        if self.operation:
+            return f'Commercial transaction with {self.operation.other_party_account.user_full_name}'
         else:
             return f'Personal transfer with {self.other_party_account.user_full_name}'

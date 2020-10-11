@@ -2,7 +2,7 @@ from django.contrib import admin
 
 # Register your models here.
 
-from core.models import Account, RawTransaction, Order
+from core.models import Account, Transaction, Operation
 
 
 class BaseInline(admin.TabularInline):
@@ -11,17 +11,17 @@ class BaseInline(admin.TabularInline):
     can_delete = False
 
 
-class RawTransactionAdmin(admin.ModelAdmin):
-    common = ('account', 'other_party_account', 'order')
+class TransactionAdmin(admin.ModelAdmin):
+    common = ('account', 'other_party_account', 'operation')
     list_display = ('__str__',) + common + ('creation_date', 'amount')
     search_fields = common + ('alipay_id',)
 
 
-class OrderAdmin(admin.ModelAdmin):
+class OperationAdmin(admin.ModelAdmin):
 
-    class RawTransactionInline(BaseInline):
-        model = RawTransaction
-        fields = RawTransactionAdmin.list_display
+    class TransactionInline(BaseInline):
+        model = Transaction
+        fields = TransactionAdmin.list_display
         readonly_fields = fields
 
 
@@ -29,22 +29,22 @@ class OrderAdmin(admin.ModelAdmin):
     list_display = common + ('creation_date', 'amount')
     search_fields = common + ('alipay_id',)
     inlines = [
-        RawTransactionInline,
+        TransactionInline,
     ]
 
 
-class OrderInline(BaseInline):
-    model = Order
-    fields = OrderAdmin.list_display
+class OperationInline(BaseInline):
+    model = Operation
+    fields = OperationAdmin.list_display
     readonly_fields = fields
     fk_name = 'other_party_account'
 
 
 class AccountAdmin(admin.ModelAdmin):
 
-    class RawTransactionInline(BaseInline):
-        model = RawTransaction
-        fields = RawTransactionAdmin.list_display
+    class TransactionInline(BaseInline):
+        model = Transaction
+        fields = TransactionAdmin.list_display
         readonly_fields = fields
         fk_name = 'other_party_account'
 
@@ -53,11 +53,11 @@ class AccountAdmin(admin.ModelAdmin):
     list_display = common + ('kind',)
     search_fields = common
     inlines = [
-        RawTransactionInline,
-        OrderInline,
+        TransactionInline,
+        OperationInline,
     ]
 
 
 admin.site.register(Account, AccountAdmin)
-admin.site.register(Order, OrderAdmin)
-admin.site.register(RawTransaction, RawTransactionAdmin)
+admin.site.register(Operation, OperationAdmin)
+admin.site.register(Transaction, TransactionAdmin)

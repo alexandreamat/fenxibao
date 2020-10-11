@@ -12,7 +12,7 @@ from enum import Enum, auto
 import djclick as click
 from django.db import transaction
 
-from core.models import RawTransaction, Account, Order
+from core.models import Transaction, Account, Operation
 
 
 HEADER_DELIMITER = '---------------------------------交易记录明细列表------------------------------------\n'
@@ -58,25 +58,25 @@ class AlipayRecord:
 
     TRANSACTION_ORIGIN_CHOICES = {
         #: Taobao purchases, refunds, installments
-        '淘宝': RawTransaction.Origin.TAOBAO,
+        '淘宝': Transaction.Origin.TAOBAO,
         #: Transfers between friends, transfer to bank accounts,
         #: transfers between own's bank and alipay (might have order number)
         #: utilities payments (have order number)
-        '支付宝网站': RawTransaction.Origin.ALIPAY,
+        '支付宝网站': Transaction.Origin.ALIPAY,
         #: Physical shops + meituan + eleme + hema
-        '其他（包括阿里巴巴和外部商家）': RawTransaction.Origin.OTHER,
+        '其他（包括阿里巴巴和外部商家）': Transaction.Origin.OTHER,
     }
     TRANSACTION_TYPE_CHOICES = {
         #: Only for taobao transactions, have funds state = awaiting payment
-        '支付宝担保交易': RawTransaction.Categroy.ALIPAY_PROTECTED,
+        '支付宝担保交易': Transaction.Categroy.ALIPAY_PROTECTED,
         # For deposits, no actual transaction
-        '预订交易': RawTransaction.Categroy.BOOKING,
+        '预订交易': Transaction.Categroy.BOOKING,
         #: Most of transactions with normal shops and some taobao purchases
-        '即时到账交易': RawTransaction.Categroy.INSTANT,
+        '即时到账交易': Transaction.Categroy.INSTANT,
     }
     TRANSACTION_SIGN_CHOICES = {
-        '支出': RawTransaction.Sign.EXPENDITURE,
-        '收入': RawTransaction.Sign.INCOME,
+        '支出': Transaction.Sign.EXPENDITURE,
+        '收入': Transaction.Sign.INCOME,
         #: empty sign + taobao + transaction successful = paid by others
         #: empty sign + taobao + transaction closed = purchase cancelled
         #: empty sign + alipay + transaction successful = transfers between bank and alipay
@@ -89,25 +89,25 @@ class AlipayRecord:
     }
     TRANSACTION_STATE_CHOICES = {
         #: awaiting reception confirmation + taobao + expenditure = normal transaction
-        '等待确认收货': RawTransaction.State.AWAITING_RECEPTION_CONFIRMATION,
-        '已关闭': RawTransaction.State.CLOSED,
+        '等待确认收货': Transaction.State.AWAITING_RECEPTION_CONFIRMATION,
+        '已关闭': Transaction.State.CLOSED,
         #: paid + taobao + expenditure = paid in installments
-        '支付成功': RawTransaction.State.PAID,
-        '转账失败': RawTransaction.State.TRANSFER_FAILED,
+        '支付成功': Transaction.State.PAID,
+        '转账失败': Transaction.State.TRANSFER_FAILED,
         #: added value + alipay + expenditure = normal transaction
-        '充值成功': RawTransaction.State.ADDED_VALUE,
-        '失败': RawTransaction.State.FAILURE,
-        '解冻成功': RawTransaction.State.UNFREEZED,
+        '充值成功': Transaction.State.ADDED_VALUE,
+        '失败': Transaction.State.FAILURE,
+        '解冻成功': Transaction.State.UNFREEZED,
         #: paid by others + alipay + expenditure = rare normal transaction
-        '代付成功': RawTransaction.State.PAID_BY_OTHERS,
-        '冻结成功': RawTransaction.State.FREEZED,
+        '代付成功': Transaction.State.PAID_BY_OTHERS,
+        '冻结成功': Transaction.State.FREEZED,
         #: awaiting payment + taobao + expenditure = operation cancelled
-        '等待付款': RawTransaction.State.AWAITING_PAYMENT,
+        '等待付款': Transaction.State.AWAITING_PAYMENT,
         #: refunded + other = refund
-        '退款成功': RawTransaction.State.REFUNDED,
-        '交易成功': RawTransaction.State.TRANSACTION_SUCCESSFUL,
+        '退款成功': Transaction.State.REFUNDED,
+        '交易成功': Transaction.State.TRANSACTION_SUCCESSFUL,
         #: transaction closed + taobao + expenditure = totally refunded purchase
-        '交易关闭': RawTransaction.State.TRANSACTION_CLOSED,
+        '交易关闭': Transaction.State.TRANSACTION_CLOSED,
     }
     FUNDS_STATE_CHOICES = {
         '待支出': FundsState.AWAITING_EXPENDITURE,
@@ -119,10 +119,10 @@ class AlipayRecord:
     }
     # PRODUCT_NAME_PATTERNS = {
     #     #: Transfers: when the issueing party writes a note, then that is used as a product name
-    #     r'收款': RawTransaction.ProductName.ALIPAY_TRANSFER,
-    #     r'转账': RawTransaction.ProductName.ALIPAY_TRANSFER,
-    #     r'付款-.*': RawTransaction.ProductName.ALIPAY_TRANSFER,
-    #     r'转账到银行卡-.*': RawTransaction.ProductName.BANK_TRANSFER,
+    #     r'收款': Transaction.ProductName.ALIPAY_TRANSFER,
+    #     r'转账': Transaction.ProductName.ALIPAY_TRANSFER,
+    #     r'付款-.*': Transaction.ProductName.ALIPAY_TRANSFER,
+    #     r'转账到银行卡-.*': Transaction.ProductName.BANK_TRANSFER,
     # }
 
     class FileSection(Enum):
@@ -255,15 +255,15 @@ class AlipayRecord:
         else:
             payment_date = None
         # create objects
-        if origin == RawTransaction.Origin.ALIPAY and not(order_num
-                                                          and not notes):
+        if origin == Transaction.Origin.ALIPAY and not(order_num
+                                                       and not notes):
             # personal transfers, might have order_num, altough irrelevant
             # instead, counterpart is important
             counterpart, _ = Account.objects.get_or_create(
                 user_full_name=counterpart,
                 kind=Account.Kind.PERSONAL,
             )
-            order = None
+            operation = None
             account = self.account
         elif order_num:
             # commercial transactions
@@ -272,13 +272,13 @@ class AlipayRecord:
                 kind=Account.Kind.ENTERPRISE,
             )
             try:
-                order = Order.objects.get(alipay_id=order_num)
+                operation = Operation.objects.get(alipay_id=order_num)
                 # subsequent transactions are prefixed e.g. with `refund`
-                if product_name in order.product_name:
-                    order.product_name = product_name
-                    order.save()
-            except Order.DoesNotExist:
-                order = Order.objects.create(
+                if product_name in operation.product_name:
+                    operation.product_name = product_name
+                    operation.save()
+            except Operation.DoesNotExist:
+                operation = Operation.objects.create(
                     alipay_id=order_num,
                     product_name=product_name,
                     account=self.account,
@@ -289,7 +289,7 @@ class AlipayRecord:
         else:
             # ignore commercial transactions without order number
             return
-        RawTransaction.objects.get_or_create(
+        Transaction.objects.get_or_create(
             account=account,
             alipay_id=alipay_id,
             creation_date=creation_date,
@@ -297,7 +297,7 @@ class AlipayRecord:
             origin=origin,
             category=category,
             state=state,
-            order=order,
+            operation=operation,
             last_modified_date=last_modified_date,
             payment_date=payment_date,
             other_party_account=counterpart,
