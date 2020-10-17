@@ -2,7 +2,7 @@ from django.contrib import admin
 
 # Register your models here.
 
-from core.models import Account, Transaction, Operation
+from core.models import Account, Order, Transfer, Transaction
 
 
 class BaseInline(admin.TabularInline):
@@ -12,12 +12,12 @@ class BaseInline(admin.TabularInline):
 
 
 class TransactionAdmin(admin.ModelAdmin):
-    common = ('account', 'other_party_account', 'operation')
-    list_display = ('__str__',) + common + ('creation_date', 'amount')
+    common = ('order', 'transfer')
+    list_display = common + ('creation_date', 'amount')
     search_fields = common + ('alipay_id',)
 
 
-class OperationAdmin(admin.ModelAdmin):
+class OrderAdmin(admin.ModelAdmin):
 
     class TransactionInline(BaseInline):
         model = Transaction
@@ -25,7 +25,7 @@ class OperationAdmin(admin.ModelAdmin):
         readonly_fields = fields
 
 
-    common = ('account', 'other_party_account', 'product_name')
+    common = ('buyer', 'seller', 'name')
     list_display = common + ('creation_date', 'amount')
     search_fields = common + ('alipay_id',)
     inlines = [
@@ -33,31 +33,53 @@ class OperationAdmin(admin.ModelAdmin):
     ]
 
 
-class OperationInline(BaseInline):
-    model = Operation
-    fields = OperationAdmin.list_display
+class TransferAdmin(admin.ModelAdmin):
+    common = ('sender', 'receiver')
+    list_display = common + ('amount',)
+    search_fields = common
+
+
+class SenderTransferInline(BaseInline):
+    model = Transfer
+    fields = TransferAdmin.list_display
     readonly_fields = fields
-    fk_name = 'other_party_account'
+    fk_name = 'sender'
+
+
+class ReceiverTransferInline(BaseInline):
+    model = Transfer
+    fields = TransferAdmin.list_display
+    readonly_fields = fields
+    fk_name = 'receiver'
+
+
+class SellerOrderInline(BaseInline):
+    model = Order
+    fields = OrderAdmin.list_display
+    readonly_fields = fields
+    fk_name = 'seller'
+
+
+class BuyerOrderInline(BaseInline):
+    model = Order
+    fields = OrderAdmin.list_display
+    readonly_fields = fields
+    fk_name = 'buyer'
 
 
 class AccountAdmin(admin.ModelAdmin):
-
-    class TransactionInline(BaseInline):
-        model = Transaction
-        fields = TransactionAdmin.list_display
-        readonly_fields = fields
-        fk_name = 'other_party_account'
-
-
     common = ('username', 'user_full_name')
     list_display = common + ('kind',)
     search_fields = common
     inlines = [
-        TransactionInline,
-        OperationInline,
+        SellerOrderInline,
+        BuyerOrderInline,
+        ReceiverTransferInline,
+        SenderTransferInline,
     ]
 
 
 admin.site.register(Account, AccountAdmin)
-admin.site.register(Operation, OperationAdmin)
+admin.site.register(Order, OrderAdmin)
+admin.site.register(Transfer, TransferAdmin)
 admin.site.register(Transaction, TransactionAdmin)
