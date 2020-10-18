@@ -12,38 +12,37 @@ class BaseInline(admin.TabularInline):
 
 
 class TransactionAdmin(admin.ModelAdmin):
-    common = ('order', 'transfer')
-    list_display = common + ('creation_date', 'amount')
-    search_fields = common + ('alipay_id',)
+    list_display = ('creation_date', 'amount')
+    search_fields = ('alipay_id',)
+
+
+class TransactionInline(BaseInline):
+    model = Transaction
+    fields = TransactionAdmin.list_display
+    readonly_fields = fields
 
 
 class OrderAdmin(admin.ModelAdmin):
-
-    class TransactionInline(BaseInline):
-        model = Transaction
-        fields = TransactionAdmin.list_display
-        readonly_fields = fields
-
-
-    common = ('buyer', 'seller', 'name')
-    list_display = common + ('creation_date', 'amount')
-    search_fields = common + ('alipay_id',)
+    list_display = ('name', 'buyer', 'seller', 'creation_date', 'amount')
+    search_fields = ('name', 'buyer__full_name', 'seller__full_name',
+                     'alipay_id',)
     inlines = [
         TransactionInline,
     ]
 
-
 class TransferAdmin(admin.ModelAdmin):
-    common = ('sender', 'receiver')
-    list_display = common + ('amount',)
-    search_fields = common
-
+    list_display = ('sender', 'receiver', 'amount')
+    search_fields = ('sender__user_full_name', 'receiver__user_full_name')
+    inlines = [
+        TransactionInline,
+    ]
 
 class SenderTransferInline(BaseInline):
     model = Transfer
     fields = TransferAdmin.list_display
     readonly_fields = fields
     fk_name = 'sender'
+    verbose_name_plural = "transfers as sender"
 
 
 class ReceiverTransferInline(BaseInline):
@@ -51,6 +50,7 @@ class ReceiverTransferInline(BaseInline):
     fields = TransferAdmin.list_display
     readonly_fields = fields
     fk_name = 'receiver'
+    verbose_name_plural = "transfers as receiver"
 
 
 class SellerOrderInline(BaseInline):
@@ -58,6 +58,7 @@ class SellerOrderInline(BaseInline):
     fields = OrderAdmin.list_display
     readonly_fields = fields
     fk_name = 'seller'
+    verbose_name_plural = "orders as seller"
 
 
 class BuyerOrderInline(BaseInline):
@@ -65,16 +66,18 @@ class BuyerOrderInline(BaseInline):
     fields = OrderAdmin.list_display
     readonly_fields = fields
     fk_name = 'buyer'
+    verbose_name_plural = "orders as buyer"
 
 
 class AccountAdmin(admin.ModelAdmin):
-    common = ('username', 'user_full_name')
+    common = ('user_full_name', 'username', )
+    list_display = common
     search_fields = common
     inlines = [
-        SellerOrderInline,
-        BuyerOrderInline,
-        ReceiverTransferInline,
-        SenderTransferInline,
+        # SellerOrderInline,
+        # BuyerOrderInline,
+        # # ReceiverTransferInline,
+        # # SenderTransferInline,
     ]
 
 
