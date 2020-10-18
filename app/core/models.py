@@ -52,6 +52,14 @@ class Transfer(models.Model):
                                  on_delete=models.CASCADE)
 
     @property
+    def creation_date(self):
+        return self.transaction.creation_date
+
+    @property
+    def notes(self):
+        return self.transaction.notes
+
+    @property
     def amount(self):
         return self.transaction.amount
 
