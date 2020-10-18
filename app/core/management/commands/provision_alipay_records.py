@@ -231,8 +231,8 @@ class AlipayRecord:
                                                          receiver=self.account)
             return transfer
 
-    def _parse_order_row(self, seller: Account, order_name: str,
-                         order_num: str) -> Order:
+    def _parse_order_row(self, seller: Account, order_name: str, order_num: str
+                         ) -> Order:
         try:
             order = Order.objects.get(alipay_id=order_num)
             if order_name in order.name:
@@ -247,20 +247,22 @@ class AlipayRecord:
             )
         return order
 
-    def parse_body_row(self, row: str):
-        cols = [column.strip() for column in row.split(',')]
-        try:
-            funds_state = self.FundsState(cols[self.Label.FUNDS_STATE.value])
-        except ValueError:
+    def _update_objects(self, transaction: Transaction, counterpart: str):
+        transfer = transaction.transfer
+        if not transfer:
             return
-        if funds_state not in [self.FundsState.PAID, self.FundsState.RECEIVED]:
+        if self.account in (transfer.receiver, transfer.sender):
             return
-        alipay_id = cols[self.Label.ALIPAY_ID.value]
-        order_num = cols[self.Label.ORDER_NUM.value]
-        notes = cols[self.Label.NOTES.value]
-        origin = self.Origin(cols[self.Label.ORIGIN.value])
+        if transfer.sender.user_full_name in counterpart:
+            transfer.receiver = self.account
+        elif transfer.receiver.user_full_name in counterpart:
+            transfer.sender = self.account
+        transfer.save()
+        return
+
+    def _create_objects(self, counterpart, origin, order_num, notes, alipay_id, funds_state, product_name, raw_amount, service_fee, refund_amount, creation_date, payment_date, last_mod_date):
         counterpart, _ = Account.objects.get_or_create(
-            user_full_name=cols[self.Label.COUNTERPART.value],
+            user_full_name=counterpart,
         )
         if origin == self.Origin.ALIPAY and not(order_num and not notes):
             transfer = self._parse_transfer_row(
@@ -272,20 +274,14 @@ class AlipayRecord:
         elif order_num:
             order = self._parse_order_row(
                 seller=counterpart,
-                order_name=cols[self.Label.PRODUCT_NAME.value],
+                order_name=product_name,
                 order_num=order_num,
             )
             transfer = None
         else:
             return
-        creation_date = self._parse_date(cols[self.Label.CREATION_DATE.value])
-        last_mod_date = self._parse_date(cols[self.Label.LAST_MOD_DATE.value])
-        payment_date = self._parse_date(cols[self.Label.PAYMENT_DATE.value])
-        raw_amount = self._parse_amount(cols[self.Label.AMOUNT.value])
-        service_fee = self._parse_amount(cols[self.Label.SERVICE_FEE.value])
-        refund_amount = self._parse_amount(cols[self.Label.REFUND_AMOUNT.value])
         amount = raw_amount + service_fee - refund_amount
-        Transaction.objects.get_or_create(
+        Transaction.objects.create(
             alipay_id=alipay_id,
             creation_date=creation_date,
             payment_date=payment_date,
@@ -295,6 +291,38 @@ class AlipayRecord:
             transfer=transfer,
             notes=notes,
         )
+
+    def parse_body_row(self, row: str):
+        cols = [column.strip() for column in row.split(',')]
+        funds_state = cols[self.Label.FUNDS_STATE.value]
+        try:
+            funds_state = self.FundsState(funds_state)
+        except ValueError:
+            return
+        if funds_state not in [self.FundsState.PAID, self.FundsState.RECEIVED]:
+            return
+        counterpart = cols[self.Label.COUNTERPART.value]
+        order_num = cols[self.Label.ORDER_NUM.value]
+        notes = cols[self.Label.NOTES.value]
+        origin = self.Origin(cols[self.Label.ORIGIN.value])
+        creation_date = self._parse_date(cols[self.Label.CREATION_DATE.value])
+        last_mod_date = self._parse_date(cols[self.Label.LAST_MOD_DATE.value])
+        payment_date = self._parse_date(cols[self.Label.PAYMENT_DATE.value])
+        raw_amount = self._parse_amount(cols[self.Label.AMOUNT.value])
+        service_fee = self._parse_amount(cols[self.Label.SERVICE_FEE.value])
+        refund_amount = self._parse_amount(cols[self.Label.REFUND_AMOUNT.value])
+        product_name = cols[self.Label.PRODUCT_NAME.value]
+        alipay_id = cols[self.Label.ALIPAY_ID.value]
+        try:
+            transaction = Transaction.objects.get(alipay_id=alipay_id)
+            self._update_objects(transaction=transaction,
+                                 counterpart=counterpart)
+        except Transaction.DoesNotExist:
+            self._create_objects(
+                counterpart, origin, order_num, notes, alipay_id, funds_state,
+                product_name, raw_amount, service_fee, refund_amount,
+                creation_date, payment_date, last_mod_date
+            )
 
     def parse_footer_row(self, row: str):
         if '用户' in row:
