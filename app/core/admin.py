@@ -69,7 +69,6 @@ class BuyerOrderInline(BaseInline):
 
 class AccountAdmin(admin.ModelAdmin):
     common = ('username', 'user_full_name')
-    list_display = common + ('kind',)
     search_fields = common
     inlines = [
         SellerOrderInline,
