@@ -22,19 +22,18 @@ from core.models import (
 )
 
 
-HEADER_DELIMITER = ('---------------------------------'
-                    '交易记录明细列表------------------------------------\n')
-FOOTER_DELIMITER = ('---------------------------------------------------------'
-                    '---------------------------\n')
-ENCODING = 'gb18030'
-PATTERN = r':\[(.*?)\]'
-ACCOUNT_ZH = '账号'
 TWOPLACES = Decimal(10) ** -2
-
 
 class AlipayRecord:
 
-    DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'  
+    DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+    ACCOUNT_ZH = '账号'
+    ENCODING = 'gb18030'
+    PATTERN = r':\[(.*?)\]'
+    HEADER_DELIMITER = ('---------------------------------'
+                        '交易记录明细列表------------------------------------\n')
+    FOOTER_DELIMITER = ('-----------------------------------------------------'
+                        '-------------------------------\n')
 
     class FileSection(Enum):
         HEADER = auto()
@@ -188,7 +187,6 @@ class AlipayRecord:
     def __init__(self, file_paths: str):
         self.file_paths = file_paths
         self.account = None
-        self.parse_zip_files()
 
     def _parse_amount(self, amount: str) -> Decimal:
         return Decimal(amount).quantize(TWOPLACES)
@@ -199,7 +197,7 @@ class AlipayRecord:
         except ValueError:
             return None
 
-    def parse_header_row(self, row: str):
+    def _parse_header_row(self, row: str):
         if ACCOUNT_ZH in row:
             match = re.search(ACCOUNT_ZH + PATTERN, row)
             if match:
@@ -292,7 +290,7 @@ class AlipayRecord:
             notes=notes,
         )
 
-    def parse_body_row(self, row: str):
+    def _parse_body_row(self, row: str):
         cols = [column.strip() for column in row.split(',')]
         funds_state = cols[self.Label.FUNDS_STATE.value]
         try:
@@ -324,53 +322,57 @@ class AlipayRecord:
                 creation_date, payment_date, last_mod_date
             )
 
-    def parse_footer_row(self, row: str):
+    def _parse_footer_row(self, row: str):
         if '用户' in row:
             match = re.search(r'(?<=用户:).*', row)
             if match:
                 self.account.user_full_name = match.group(0)
                 self.account.save()
   
-    def parse_ext_file(self, ext_file: zipfile.ZipExtFile, file_size: int):
+    def _parse_ext_file(self, ext_file: zipfile.ZipExtFile, file_size: int):
         current_section = self.FileSection.HEADER
-        acum_size = 0
-        stream = io.TextIOWrapper(ext_file, ENCODING)
+        stream = io.TextIOWrapper(ext_file, self.ENCODING)
         with tqdm(total=file_size, unit_scale=True, unit='B') as pbar:
             for row in stream:
-                pbar.update(len(row.encode(ENCODING)))
+                pbar.update(len(row.encode(self.ENCODING)))
                 if current_section == self.FileSection.HEADER:
-                    if row == HEADER_DELIMITER:
+                    if row == self.HEADER_DELIMITER:
                         current_section = self.FileSection.LABELS
                         continue
-                    self.parse_header_row(row=row)
+                    self._parse_header_row(row=row)
                 elif current_section == self.FileSection.LABELS:
                     # TODO check labels order
                     current_section = self.FileSection.BODY
                     continue
                 elif current_section == self.FileSection.BODY:
-                    if row == FOOTER_DELIMITER:
+                    if row == self.FOOTER_DELIMITER:
                         current_section = self.FileSection.FOOTER
                         continue
-                    self.parse_body_row(row=row)
+                    self._parse_body_row(row=row)
                 elif current_section == self.FileSection.FOOTER:
-                    self.parse_footer_row(row=row)
+                    self._parse_footer_row(row=row)
         assert current_section == self.FileSection.FOOTER, ('File delimiters '
                                                             'not found.')
 
-    def parse_zip_files(self):
+    def _parse_zip_files(self):
         for file_path in self.file_paths:
             with zipfile.ZipFile(file_path) as zip_dir:
                 for zip_file in zip_dir.namelist():
                     file_size = zip_dir.getinfo(zip_file).file_size
                     with zip_dir.open(zip_file) as ext_file:
-                        self.parse_ext_file(
+                        self._parse_ext_file(
                             ext_file=ext_file,
                             file_size=file_size
                         )
+
+    def dump(self):
+        self._parse_zip_files()
+
 
 @click.command(help='Provision Alipay records from .zip file')
 @click.argument('file_paths')
 def command(file_paths):
     click.secho("Processing records files...")
     with transaction.atomic():
-        AlipayRecord(file_paths=glob.glob(file_paths))
+        record = AlipayRecord(file_paths=glob.glob(file_paths))
+        record.dump()
