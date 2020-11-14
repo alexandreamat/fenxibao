@@ -4,15 +4,16 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
-rope = "*"
-pylint = "*"
+pytest = "*"
+django-dynamic-fixture = "*"
+pytest-django = "*"
 
 [packages]
-django = "*"
-psycopg2-binary = "*"
+django = "<3.1"
 django-environ = "*"
 django-click = "*"
 tqdm = "*"
+psycopg2-binary = "*"
 
 [requires]
 python_version = "3.8"
