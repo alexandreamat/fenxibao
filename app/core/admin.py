@@ -24,7 +24,7 @@ class TransactionInline(BaseInline):
 
 class OrderAdmin(admin.ModelAdmin):
     list_display = ('name', 'buyer', 'seller', 'creation_date', 'amount')
-    search_fields = ('name', 'buyer__full_name', 'seller__full_name',
+    search_fields = ('name', 'buyer__user_full_name', 'seller__user_full_name',
                      'alipay_id',)
     inlines = [
         TransactionInline,

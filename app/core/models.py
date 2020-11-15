@@ -32,7 +32,7 @@ class Order(models.Model):
 
     @property
     def creation_date(self):
-        return min([rt.created for rt in self.transaction_set.all()])
+        return min([rt.creation_date for rt in self.transaction_set.all()])
 
     @property
     def last_modified_date(self):
@@ -53,7 +53,7 @@ class Transfer(models.Model):
 
     @property
     def creation_date(self):
-        return self.transaction.created
+        return self.transaction.creation_date
 
     @property
     def notes(self):

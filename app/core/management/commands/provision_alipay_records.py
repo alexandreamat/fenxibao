@@ -14,6 +14,7 @@ from enum import Enum, auto
 
 import djclick as click
 from django.db import transaction
+from django.db.models import Q
 
 from core.models import (
     Transaction,
@@ -184,6 +185,8 @@ class AlipayRecord:
             FROZEN = '冻结'
             #: Deposits
             UNFROZEN = '解冻'
+            #: Blank: cancelled transactions, movements between accounts
+            BLANK = ''
 
         class Sign(Enum):
             ''' Expenditure / income
@@ -302,19 +305,22 @@ class AlipayRecord:
             if transfer.sender.username:
                 # Transfer object first created with sender record
                 assert not transfer.receiver.username
-                existing_counterpart = transfer.receiver
+                unknown_account_id = transfer.receiver.id
                 transfer.receiver = self.account
             elif transfer.receiver.username:
                 # Transfer object first created with receiver record
                 assert not transfer.sender.username
-                existing_counterpart = transfer.sender
+                unknown_account_id = transfer.sender.id
                 transfer.sender = self.account
             else:
                 raise IncompleteTransferError
             transfer.save()
-            if not (existing_counterpart.transfers_as_sender.count()
-                    or existing_counterpart.transfers_as_receiver.count()):
-                existing_counterpart.delete()
+            remaining_transfers = Transfer.objects.filter(
+                Q(sender__id=unknown_account_id)
+                | Q(receiver__id=unknown_account_id)
+            ).count()
+            if not remaining_transfers:
+                Account.objects.get(pk=unknown_account_id).delete()
 
         def _process_new_transaction(self) -> None:
             """Create transfer or order, and their corresponding transaction
@@ -390,7 +396,7 @@ class AlipayRecord:
         self.file_paths = file_paths
         self.account = None
 
-    def _parse_header_row(self, row: str):
+    def _parse_header_row(self, row: str) -> None:
         if self.ACCOUNT_ZH not in row:
             return
         match = re.search(self.ACCOUNT_ZH + self.PATTERN, row)
@@ -455,6 +461,7 @@ class AlipayRecord:
                         self._parse_stream(stream=stream, file_size=file_size)
 
     def dump(self):
+        print(self.file_paths)
         self._parse_zip_files()
 
 

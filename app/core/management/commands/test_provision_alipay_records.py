@@ -6,7 +6,6 @@ from typing import Optional, List
 
 import pytest
 from ddf import G
-from django.db.models import Q
 
 from core.models import (
     Account,
@@ -438,19 +437,17 @@ def test_raw_transaction_update_existing_transfer(
         known_sender: bool,
         other_transfers: bool,
 ):
-    if known_receiver:
-        receiver = G(Account, username='foo')
-    else:
-        receiver = G(Account)
-        existing_counterpart_id = receiver.id
-    if known_sender:
-        sender = G(Account, username='bar')
-    else:
-        sender = G(Account)
-        existing_counterpart_id = sender.id
+    receiver = G(Account, username='foo') if known_receiver else G(Account)
+    sender = G(Account, username='bar') if known_sender else G(Account)
+    if not known_receiver:
+        unknown_account_id = receiver.id
+    if not known_sender:
+        unknown_account_id = sender.id
     transfer = G(Transfer, sender=sender, receiver=receiver)
     if other_transfers:
         G(Transfer, sender=sender, receiver=receiver)
+        G(Transfer, sender=sender)
+        G(Transfer, receiver=receiver)
     if known_receiver and known_sender:
         with pytest.raises(AssertionError):
             raw_transaction._update_existing_transfer(transfer)
@@ -460,7 +457,7 @@ def test_raw_transaction_update_existing_transfer(
     else:
         raw_transaction._update_existing_transfer(transfer)
         remains = bool(Account.objects.filter(
-            pk=existing_counterpart_id
+            pk=unknown_account_id
         ).count())
         assert remains == other_transfers
         if not known_sender:
